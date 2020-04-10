@@ -1,0 +1,114 @@
+---
+title: 'Homework #5'
+author: "Connor Toliver; @connortoliver"
+date: "4/9/2020"
+output: html_document
+---
+
+# Liquor Sales in Iowa
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Before we get started, let's load in our required libraries and data.
+
+```{r}
+library(tidyverse)
+df <- read_csv('2019_Iowa_Liquor_Sales.csv')
+df <- na.omit(df)
+```
+
+Great! Now let's do some preliminary data cleaning. We'll extract the latitude and longitude from the `Store Location`, make sure our variables are the correct types, and extract the day, month, and year from `Date`.
+
+```{r}
+df$temp <- gsub('[()]', '', substr(df$`Store Location`, 7, 10000))
+
+df <- df %>% 
+  separate(temp, c('Longitude', 'Latitude'), convert = TRUE, sep=' ')
+```
+
+```{r}
+df <- df %>% 
+  separate(Date, c('Month', 'Day', 'Year'), convert = TRUE, remove = FALSE)
+
+df$Date <- as.Date(df$Date, '%m/%d/%Y')
+```
+
+Now that we have that done, let's plot a scatterplot of the liquor store locations.
+
+```{r}
+ggplot(df, aes(Longitude, Latitude)) + geom_point() +
+  ggtitle('Latitude and Longitude of Liquor Stores in Ames')
+```
+
+Although there's no map of Ames, we can sort of make out the liquor stores with our knowledge of the city. Around (42.03, -93.62) we can see a somewhat horseshoe-shaped group of liquor stores. Intuition tells us that this is likely Welch Avenue and surrounding areas, with the amount and shape of the stores on the map.
+
+Now let's break down the liquor categories and see the volume sold.
+
+```{r}
+ggplot(df, aes(x = `Category Name`, weight = `Volume Sold (Gallons)`)) + 
+  geom_bar() + 
+  xlab('Liquor Category') +
+  ylab('Volume of Liquor Sold in Gallons') +
+  ggtitle('Volume of Liquor Sold in Ames by Category') +
+  coord_flip()
+```
+
+American Vodka is by far the most liquor category sold in Ames by almost 20,000 gallons. The next highest is Canadian Whiskies.
+
+A large portion of American vodka is likely attributed to Hawkeye, and a large portion of Canadian whiskey is likely attributed to Black Velvet.
+
+Now let's summarize the daily liquor sales in Ames during 2019.
+
+```{r}
+df2 <- df %>% 
+  group_by(Date, Day, Month, Year) %>% 
+  summarize(sales = n(), volume_l = sum(`Volume Sold (Liters)`),
+            volume_gal = sum(`Volume Sold (Gallons)`),
+            money_spent = sum(`Sale (Dollars)`))
+
+df2
+```
+
+Great! Now that we have that done, let's plot volume sold by day and facet by month. This will help us see any trends or patterns.
+
+```{r}
+df2 %>% ggplot(aes(x = Day, y = volume_gal)) +
+  geom_jitter() +
+  geom_smooth() +
+  facet_wrap(~Month) +
+  xlab('Day of Month') +
+  ylab('Volume Sold in Gallons') +
+  ggtitle('Volume of Alcohol Sold by Day During 2019 in Ames')
+```
+
+We can see a couple interesting things looking at this graph. First, there's a hard drop off at the end of April—this could be due to exams starting and students focusing more on their education.
+
+There's a fairly sharp increase at the end of July. Perhaps this is due to students coming back to Ames. There is also a slight increase at the end of August, perhaps this is because students want one last "hoorah" before classes resume. 
+
+Now let's see if there's a pattern for the ISU home football games in 2019. We'll do this by plotting a time series of the volume of liquor sold. Since football starts in August, we'll start the graph off in August and end it before December, since that's all we need. The other months aren't relevant. We can assume that there will be heavy spikes on the home football days, so we will label the days with over 1500 gallons sold.
+
+```{r}
+library(plotly)
+p <- df2 %>% 
+  filter(Month >= 8 & Month < 12) %>% 
+  ggplot(aes(x = Date, y = volume_gal)) +
+  geom_line() +
+  geom_text(aes(x = Date, y = volume_gal, label = Date), data = df2 %>% filter(Month >= 8 & Month < 12 & volume_gal >= 1750))
+ggplotly(p)
+```
+
+According to [Cyclones.com](https://cyclones.com/sports/football/schedule/2019), the home games are as follows:
+
+* 08/31
+* 09/14
+* 09/21
+* 10/05
+* 10/26
+* 11/16
+* 11/23
+
+Not every game spikes higher than 1750 gallons, but there is still a noticeable trend. In fact, liquor sales seem to spike 2-3 days *before* the game, which is fairly interesting—perhaps people are afraid of the stores selling out so they buy it beforehand?
+
+Regardless, there is a noticeable trend with home games and liquor store sales spiking upwards.
